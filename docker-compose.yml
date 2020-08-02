@@ -1,0 +1,144 @@
+version: "3"
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+      args:
+        #        NGINX_VERSION: ${NGINX_VERSION} # nginx
+        OPENRESTY_VERSION: ${OPENRESTY_VERSION} # openresty
+    container_name: nginx115
+    ports:
+      - "${NGINX_HTTP_HOST_PORT}:80"
+      - "${NGINX_HTTPS_HOST_PORT}:443"
+    links:
+      - php72:fpm72
+      - php55:fpm55
+    volumes:
+      - ${SOURCE_DIR}:/var/www/html/:rw
+      - ${NGINX_CONFD_DIR}:/etc/nginx/conf.d/:rw
+      - ${NGINX_LOG_DIR}:/var/log/nginx/:rw
+    networks:
+      docker_net:
+        ipv4_address: ${NGINX115_IP}
+    tty: true
+
+  php72:
+    build:
+      context: ./php/php72
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP72_VERSION}
+        PHP_XDEBUG: ${PHP72_XDEBUG}
+        PHP_SWOOLE: ${PHP72_SWOOLE}
+        PHP_REDIS: ${PHP72_REDIS}
+        REPLACE_SOURCE_LIST: ${REPLACE_SOURCE_LIST}
+    expose:
+      - "9000"
+    ports:
+      - ${PHP72_PORT}:9000
+    container_name: php72
+    volumes:
+      - ${SOURCE_DIR}:/var/www/html/:rw
+      - ${PHP72_PHP_CONF_FILE}:/usr/local/etc/php/php.ini:ro
+      - ${PHP72_FPM_CONF_FILE}:/usr/local/etc/php-fpm.d/:rw
+    cap_add:
+      - SYS_PTRACE
+    networks:
+      docker_net:
+        ipv4_address: ${PHP72_IP}
+
+
+  php55:
+    build:
+      context: ./php/php55
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: ${PHP55_VERSION}
+        PHP_XDEBUG: ${PHP55_XDEBUG}
+        PHP_SWOOLE: ${PHP55_SWOOLE}
+        #PHP_YAF: ${PHP55_YAF}
+        PHP_REDIS: ${PHP55_REDIS}
+        REPLACE_SOURCE_LIST: ${REPLACE_SOURCE_LIST}
+    expose:
+      - "9000"
+    ports:
+      - ${PHP55_PORT}:9000
+    container_name: php55
+    volumes:
+      - ${SOURCE_DIR}:/var/www/html/:rw
+      - ${PHP55_PHP_CONF_FILE}:/usr/local/etc/php/php.ini:ro
+      - ${PHP55_FPM_CONF_FILE}:/usr/local/etc/php-fpm.d/:rw
+    cap_add:
+      - SYS_PTRACE
+    networks:
+      docker_net:
+        ipv4_address: ${PHP55_IP}
+
+
+  golang:
+    build:
+      context: ./golang
+      dockerfile: Dockerfile
+    ports:
+      - "${GOLANG_HTTP_HOST_PORT}:8088"
+    container_name: golang110
+    volumes:
+      - ${GOLANG_ROOT_DIR}:/go
+    networks:
+      docker_net:
+        ipv4_address: ${GOLANG110_IP}
+    tty: true
+
+  mysql:
+    hostname: mysql
+    image: mysql:${MYSQL_VERSION}
+    # network_mode: "host" # 如果需要容器使用宿主机IP(内网IP)，则可以配置此项
+    container_name: mysql # 指定容器名称，如果不设置此参数，则由系统自动生成
+    restart: unless-stopped # 设置容器自启模式
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+      --max_allowed_packet=128M
+      --sql-mode="STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
+    environment:
+      - TZ=${MYSQL_TIMEZONE} # 设置容器时区与宿主机保持一致
+      - MYSQL_ROOT_PASSWORD=root # 设置root密码
+    volumes:
+      - ${MYSQL_DATA_PATH}:/var/lib/mysql/ # 映射数据库保存目录到宿主机，防止数据丢失
+      - ${MYSQL_CONF_FILE}:/etc/mysql/conf.d/my.conf # 映射数据库配置文件
+      - ${MYSQL_LOG_PATH}:/logs
+    ports:
+      - "${MYSQL_PORT}:3306"
+    networks:
+      docker_net:
+        ipv4_address: ${MYSQL_IP}
+
+  redis:
+    hostname: redis
+    image: redis:${REDIS_VERSION}
+    container_name: redis
+    restart: always
+    #restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf # 启动redis命令
+    environment:
+      - TZ=${REDIS_TIMEZONE}
+    volumes:
+      - ${REDIS_DATA_PATH}:/data
+      - ${REDIS_CONF_FILE}:/etc/redis/redis.conf
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      docker_net:
+        ipv4_address: ${REDIS_IP}
+
+
+networks:
+  docker_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "${DOCKER_SUBNET}"
