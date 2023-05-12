@@ -1,6 +1,6 @@
 # docker-lnmp
-容器开发环境
-包含php5、php7、mysql、redis、golang等
-可灵活配置
-使用的桥接网络
+Container development environment
+Including PHP 5, PHP 7, MySQL, Redis, Golang, etc
+Flexible configuration
+Bridge network used
 
